@@ -2,34 +2,61 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
 #include <utility/imumaths.h>
+
 #include "StandardCplusplus.h"
 #include <vector>
 #include <algorithm>
+#include <stdlib.h>
 
 using namespace std;
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
 
-
+// Inputs
 const int threshold = 2; // velocity threshold of when to fire nozzles, rpm
 int num_readings = 2; // number of velocity readings that have to consistently be above threshold to fire
-int pos_thrust_pin = 36;      // for now ccw
-int neg_thrust_pin = 38;
-int pos_thrust_pin_ground = 37;
-int neg_thrust_pin_ground = 39;
+
 int axis = 3; // x=1, y=2, z=3
 int timestep = 100; // time between velocity readings, in milliseconds
 int displayTime = 1;
 int countNum = 0;
+//
 
+// PID Control
+double K_p = 20;  // ms per RMP
+int num_readings_for_integral = 5*num_readings;
+double K_i = 1;
 
+// pins
+int pos_thrust_pin = 36;      // for now ccw
+int neg_thrust_pin = 38;
+int pos_thrust_pin_ground = 37;
+int neg_thrust_pin_ground = 39;
+//
+
+// initializations
 vector <vector<double> > history_velocity; // vector of vectors (# of readings x 3) of all velocity readings
 vector <vector<bool> > history_nozzle;
 bool  positive_thruster, negative_thruster;
+
+double velocity_difference; // difference between average velocity and threshold
+double average_velocity; // average velocity over num_readings
+double sum_velocity; // sum of velocity over num_readings_for_integral
+double delay_time; // duration nozzles are open for
+//
 
 
 double toRPM(double degPerSecond)
 {
   return (degPerSecond*60/(360));
+}
+
+double myAbs(double input){
+  if (input < 0){
+    return -input;
+  }
+  else{
+    return input;
+  }
 }
 
 void controlNozzles(vector<vector<double> > &velocityVector, vector<vector<bool> > &nozzleVector, int axis)
@@ -42,9 +69,19 @@ void controlNozzles(vector<vector<double> > &velocityVector, vector<vector<bool>
   int state(1); // state = 0 for v < -thres, = 2 v > thresh
   
   int   N = velocityVector.size();
+  average_velocity = 0;
   for (int i=0; i < num_readings; ++i)
   {    
     current_velocity.push_back(velocityVector[N-1-i][axis-1]);
+    average_velocity += velocityVector[N-1-i][axis-1];
+  }
+  average_velocity = average_velocity/num_readings;
+
+  sum_velocity = 0;
+  for (int i=0; i < num_readings_for_integral; ++i)
+  {    
+    current_velocity.push_back(velocityVector[N-1-i][axis-1]);
+    sum_velocity += velocityVector[N-1-i][axis-1];
   }
     
   //vector<bool>::iterator it;
@@ -122,19 +159,22 @@ void controlNozzles(vector<vector<double> > &velocityVector, vector<vector<bool>
 
 
     if(next_nozzle[0]){
-      OpenPositiveNozzle();
+      velocity_difference = myAbs(average_velocity) - threshold;
+      OpenPositiveNozzle(velocity_difference,myAbs(sum_velocity));
     }
 
     if(next_nozzle[1]){ 
-      OpenNegativeNozzle();
+      velocity_difference = myAbs(average_velocity) - threshold;
+      OpenNegativeNozzle(velocity_difference,myAbs(sum_velocity));
     }
     
 }
 
-void OpenPositiveNozzle(){
+void OpenPositiveNozzle(double velocity_difference, double velocity_integral){
+  delay_time = 50 + velocity_difference*K_p + velocity_integral*K_i;
   Serial.println("       Opening Positive Nozzle");
   digitalWrite(pos_thrust_pin, HIGH);
-  delay(100);
+  delay(delay_time);
   digitalWrite(pos_thrust_pin, LOW);
   digitalWrite(pos_thrust_pin_ground, HIGH);
   delay(100);
@@ -143,11 +183,11 @@ void OpenPositiveNozzle(){
 
 }
 
-void OpenNegativeNozzle(){
+void OpenNegativeNozzle(double velocity_difference, double velocity_integral){
   Serial.println("       Opening Negative Nozzle");
-  
+  delay_time = 50 + velocity_difference*K_p + velocity_integral*K_i;
   digitalWrite(neg_thrust_pin, HIGH);
-  delay(100);
+  delay(delay_time);
   digitalWrite(neg_thrust_pin, LOW);
 
   digitalWrite(neg_thrust_pin_ground, HIGH);
@@ -175,6 +215,11 @@ void printVector(vector<vector<double> > &velocityVector, int n, int axis)
 
 void setup(void)
   {
+
+  pinMode(44,OUTPUT);
+
+  digitalWrite(44, HIGH);
+  
   pinMode(pos_thrust_pin,OUTPUT);
   pinMode(neg_thrust_pin,OUTPUT);
   pinMode(pos_thrust_pin_ground,OUTPUT);
@@ -215,13 +260,15 @@ void loop(void)
   current_velocity.push_back( (double)toRPM(euler.x()/16) );
   current_velocity.push_back( (double)toRPM(euler.y()/16) );
   current_velocity.push_back( (double)toRPM(euler.z()/16) );
-  if (countNum > num_readings) {
+  if (countNum > num_readings_for_integral+1) {
     history_velocity.erase(history_velocity.begin());
     history_nozzle.erase(history_nozzle.begin());
 
   }
   history_velocity.push_back(current_velocity);
-  controlNozzles(history_velocity,history_nozzle, axis); // pass by reference
+  if (countNum > num_readings_for_integral+1) {
+    controlNozzles(history_velocity,history_nozzle, axis); // pass by reference
+  }
   delay(timestep);
 
   if (countNum % (int(displayTime/(0.001*timestep))) == 0 || current_velocity[2] < -threshold || current_velocity[2] > threshold )
