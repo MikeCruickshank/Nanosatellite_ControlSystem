@@ -17,13 +17,13 @@ int num_readings = 2; // number of velocity readings that have to consistently b
 
 int axis = 3; // x=1, y=2, z=3
 int timestep = 100; // time between velocity readings, in milliseconds
-int displayTime = 1;
+double displayTime = 0.1;
 int countNum = 0;
 //
 
 // PID Control
 double K_p = 20;  // ms per RMP
-int num_readings_for_integral = 5*num_readings;
+int num_readings_for_integral = 2*num_readings;
 double K_i = 1;
 
 // pins
@@ -48,6 +48,11 @@ double delay_time; // duration nozzles are open for
 double toRPM(double degPerSecond)
 {
   return (degPerSecond*60/(360));
+}
+
+double toRPM_radians(double radPerSecond)
+{
+  return (radPerSecond*60/(2*3.14159));
 }
 
 double myAbs(double input){
@@ -257,10 +262,16 @@ void loop(void)
   vector <double> current_velocity;
   
   imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
-  current_velocity.push_back( (double)toRPM(euler.x()/16) );
-  current_velocity.push_back( (double)toRPM(euler.y()/16) );
-  current_velocity.push_back( (double)toRPM(euler.z()/16) );
-  if (countNum > num_readings_for_integral+1) {
+//  current_velocity.push_back( ((double)toRPM(euler.x())/16) );
+//  current_velocity.push_back( ((double)toRPM(euler.y())/16) );
+//  current_velocity.push_back( ((double)toRPM(euler.z())/16) );
+//  current_velocity.push_back( toRPM_radians((double)euler.x()) );
+//  current_velocity.push_back( toRPM_radians((double)euler.y()) );
+//  current_velocity.push_back( toRPM_radians((double)euler.z()) );
+  current_velocity.push_back( toRPM((double)euler.x()) );
+  current_velocity.push_back( toRPM((double)euler.y()) );
+  current_velocity.push_back( toRPM((double)euler.z()) );
+  if (countNum > 2*num_readings_for_integral+1) {
     history_velocity.erase(history_velocity.begin());
     history_nozzle.erase(history_nozzle.begin());
 
@@ -271,9 +282,11 @@ void loop(void)
   }
   delay(timestep);
 
-  if (countNum % (int(displayTime/(0.001*timestep))) == 0 || current_velocity[2] < -threshold || current_velocity[2] > threshold )
+//  if (countNum % (int(displayTime/(0.001*timestep))) == 0 || current_velocity[2] < -threshold || current_velocity[2] > threshold )
+  if (countNum % (int(displayTime/(0.001*timestep))) == 0 )
+
    {
-    Serial.print(countNum);
+    //Serial.print(countNum);
     Serial.print("   X: ");
     Serial.print(current_velocity[0]);
     Serial.print(" RPM,  Y: ");
@@ -285,6 +298,8 @@ void loop(void)
    }
   
   countNum = countNum + 1;
+//  Serial.print("Count:");
+//  Serial.println(countNum);
 
 }
 
