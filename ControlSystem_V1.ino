@@ -12,8 +12,8 @@ using namespace std;
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
 
 // Inputs
-const int threshold = 2; // velocity threshold of when to fire nozzles, rpm
-int num_readings = 2; // number of velocity readings that have to consistently be above threshold to fire
+const int threshold = 15; // velocity threshold of when to fire nozzles, rpm
+int num_readings = 4; // number of velocity readings that have to consistently be above threshold to fire
 
 int axis = 3; // x=1, y=2, z=3
 int timestep = 100; // time between velocity readings, in milliseconds
@@ -24,14 +24,14 @@ int countNum = 0;
 // PID Control
 double K_p = 20;  // ms per RMP
 int num_readings_for_integral = 2*num_readings;
-double K_i = 1;
+double K_i = 0;
 
 // pins
-int pos_thrust_pin = 36;      // for now ccw
-int neg_thrust_pin = 38;
-int pos_thrust_pin_ground = 37;
-int neg_thrust_pin_ground = 39;
-//
+int pos_thrust_pin = 4;      // for now ccw
+int neg_thrust_pin = 2;
+int pos_thrust_pin_ground = 5;
+int neg_thrust_pin_ground = 3; 
+
 
 // initializations
 vector <vector<double> > history_velocity; // vector of vectors (# of readings x 3) of all velocity readings
@@ -221,18 +221,27 @@ void printVector(vector<vector<double> > &velocityVector, int n, int axis)
 void setup(void)
   {
 
-  pinMode(44,OUTPUT);
 
-  digitalWrite(44, HIGH);
-  
+
+  delay(5000);
+  Serial.println("5Seconds");
+  delay(5000);
+
   pinMode(pos_thrust_pin,OUTPUT);
   pinMode(neg_thrust_pin,OUTPUT);
   pinMode(pos_thrust_pin_ground,OUTPUT);
   pinMode(neg_thrust_pin_ground,OUTPUT);
-  pinMode(22,OUTPUT);
 
-  digitalWrite(22, HIGH);
+  digitalWrite(neg_thrust_pin, LOW);
+  digitalWrite(pos_thrust_pin, LOW);
+  digitalWrite(neg_thrust_pin_ground, HIGH);
+  digitalWrite(pos_thrust_pin_ground, HIGH);
+//  delay(100);
+//  digitalWrite(neg_thrust_pin_ground, LOW);
+//  digitalWrite(pos_thrust_pin_ground, LOW);
+  
 
+  
   Serial.begin(9600);
   Serial.println("Orientation Sensor Test"); Serial.println("");
   /* Initialise the sensor */
