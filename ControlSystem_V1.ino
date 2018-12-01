@@ -13,7 +13,7 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 
 // Inputs
 const int threshold = 15; // velocity threshold of when to fire nozzles, rpm
-int num_readings = 4; // number of velocity readings that have to consistently be above threshold to fire
+int num_readings = 2; // number of velocity readings that have to consistently be above threshold to fire
 
 int axis = 3; // x=1, y=2, z=3
 int timestep = 100; // time between velocity readings, in milliseconds
@@ -22,7 +22,7 @@ int countNum = 0;
 //
 
 // PID Control
-double K_p = 20;  // ms per RMP
+double K_p = 100;  // ms per RMP
 int num_readings_for_integral = 2*num_readings;
 double K_i = 0;
 
@@ -223,9 +223,9 @@ void setup(void)
 
 
 
-  delay(5000);
-  Serial.println("5Seconds");
-  delay(5000);
+  delay(10000);
+  Serial.println("10 Seconds");
+  delay(10000);
 
   pinMode(pos_thrust_pin,OUTPUT);
   pinMode(neg_thrust_pin,OUTPUT);
@@ -280,6 +280,7 @@ void loop(void)
   current_velocity.push_back( toRPM((double)euler.x()) );
   current_velocity.push_back( toRPM((double)euler.y()) );
   current_velocity.push_back( toRPM((double)euler.z()) );
+  
   if (countNum > 2*num_readings_for_integral+1) {
     history_velocity.erase(history_velocity.begin());
     history_nozzle.erase(history_nozzle.begin());
