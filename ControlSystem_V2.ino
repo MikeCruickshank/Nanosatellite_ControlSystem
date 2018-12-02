@@ -16,8 +16,9 @@ const int threshold = 15; // velocity threshold of when to fire nozzles, rpm
 int num_readings = 2; // number of velocity readings that have to consistently be above threshold to fire
 
 int axis = 3; // x=1, y=2, z=3
-int timestep = 100; // time between velocity readings, in milliseconds
+int timestep = 50; // time between velocity readings, in milliseconds
 double displayTime = 0.1;
+int intialDelay = 15000;
 int countNum = 0;
 //
 
@@ -73,22 +74,9 @@ void controlNozzles(vector<vector<double> > &velocityVector, vector<vector<bool>
   for (int i=0; i < num_readings; ++i)
   {    
     current_velocity.push_back(velocityVector[N-1-i][axis-1]);
-    average_velocity += velocityVector[N-1-i][axis-1];
   }
-  average_velocity = average_velocity/num_readings;
 
-  sum_velocity = 0;
-  for (int i=0; i < num_readings_for_integral; ++i)
-  {    
-    current_velocity.push_back(velocityVector[N-1-i][axis-1]);
-    sum_velocity += velocityVector[N-1-i][axis-1];
-  }
-    
-  //vector<bool>::iterator it;
-  //for(it = vb.begin(); it != vb.end(); it++)
-  //cout << *it;
-  //cout << endl;
-
+  
   // Check to see if recent velocity is within threshold
   bool newState = true;
   for (vector<double>::iterator it = current_velocity.begin() ; it != current_velocity.end(); ++it)
@@ -160,18 +148,17 @@ void controlNozzles(vector<vector<double> > &velocityVector, vector<vector<bool>
 
     if(next_nozzle[0]){
       velocity_difference = myAbs(average_velocity) - threshold;
-      OpenPositiveNozzle(velocity_difference,myAbs(sum_velocity), axis);
+      OpenPositiveNozzle(axis);
     }
 
     if(next_nozzle[1]){ 
       velocity_difference = myAbs(average_velocity) - threshold;
-      OpenNegativeNozzle(velocity_difference,myAbs(sum_velocity), axis);
+      OpenNegativeNozzle(axis);
     }
     
 }
 
-void OpenPositiveNozzle(double velocity_difference, double velocity_integral, int axis){
-  delay_time = 50 + velocity_difference*K_p + velocity_integral*K_i;
+void OpenPositiveNozzle( int axis){
   Serial.println("       Opening Positive Nozzle");
   digitalWrite(pos_thrust_pin, HIGH);
   delay(100);
@@ -183,20 +170,25 @@ void OpenPositiveNozzle(double velocity_difference, double velocity_integral, in
   current_velocity_local.push_back( toRPM((double)euler.y()) );
   current_velocity_local.push_back( toRPM((double)euler.z()) );
   
- while (myAbs(current_velocity_local[axis-1]) > threshold)
+ while (current_velocity_local[axis-1] < 2)
  {
-  delay(50);
+    Serial.println("            In Pos Loop");
+    imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+    current_velocity_local[0]  =  toRPM((double)euler.x());
+    current_velocity_local[1] = toRPM((double)euler.y());
+    current_velocity_local[2] = toRPM((double)euler.z());
+    
+    delay(10);
  }
   digitalWrite(pos_thrust_pin_ground, HIGH);
   delay(100);
   digitalWrite(pos_thrust_pin_ground, LOW);  
 }
 
-void OpenNegativeNozzle(double velocity_difference, double velocity_integral, int axis){
+void OpenNegativeNozzle( int axis){
   Serial.println("       Opening Negative Nozzle");
-  delay_time = 50 + velocity_difference*K_p + velocity_integral*K_i;
   digitalWrite(neg_thrust_pin, HIGH);
-  delay(delay_time);
+  delay(100);
   digitalWrite(neg_thrust_pin, LOW);
 
   vector <double> current_velocity_local; 
@@ -205,9 +197,15 @@ void OpenNegativeNozzle(double velocity_difference, double velocity_integral, in
   current_velocity_local.push_back( toRPM((double)euler.y()) );
   current_velocity_local.push_back( toRPM((double)euler.z()) );
   
- while (myAbs(current_velocity_local[axis-1]) > threshold){
-  delay(50);
+ while (current_velocity_local[axis-1] > -2){
+    Serial.println("            In Neg Loop");
+    imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+    current_velocity_local[0]  =  toRPM((double)euler.x());
+    current_velocity_local[1] = toRPM((double)euler.y());
+    current_velocity_local[2] = toRPM((double)euler.z());
+    delay(20);
  }
+ 
   digitalWrite(neg_thrust_pin_ground, HIGH);
   delay(100);
   digitalWrite(neg_thrust_pin_ground, LOW);
@@ -234,10 +232,6 @@ void printVector(vector<vector<double> > &velocityVector, int n, int axis)
 void setup(void)
   {
 
-
-
-
-
   pinMode(pos_thrust_pin,OUTPUT);
   pinMode(neg_thrust_pin,OUTPUT);
   pinMode(pos_thrust_pin_ground,OUTPUT);
@@ -247,14 +241,13 @@ void setup(void)
   digitalWrite(pos_thrust_pin, LOW);
   digitalWrite(neg_thrust_pin_ground, HIGH);
   digitalWrite(pos_thrust_pin_ground, HIGH);
-//  delay(100);
-//  digitalWrite(neg_thrust_pin_ground, LOW);
-//  digitalWrite(pos_thrust_pin_ground, LOW);
+  delay(100);
+  digitalWrite(neg_thrust_pin_ground, LOW);
+  digitalWrite(pos_thrust_pin_ground, LOW);
   
 
-  delay(10000);
-  Serial.println("10 Seconds");
-  delay(10000);
+  delay(intialDelay-1000);
+
 
   
   Serial.begin(9600);
@@ -302,7 +295,7 @@ void loop(void)
 
   }
   history_velocity.push_back(current_velocity);
-  if (countNum > num_readings_for_integral+1) {
+  if (countNum > num_readings+1) {
     controlNozzles(history_velocity,history_nozzle, axis); // pass by reference
   }
   delay(timestep);
